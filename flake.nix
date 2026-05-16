@@ -38,6 +38,7 @@
         glib
         libsoup_3
         alsa-lib
+        pipewire
         onnxruntime
         libayatana-appindicator
         libevdev
@@ -236,6 +237,7 @@
 
             # Same as wrapGAppsHook4
             XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:${pkgs.hicolor-icon-theme}/share";
+            RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
 
             shellHook = ''
               echo "Handy development environment"

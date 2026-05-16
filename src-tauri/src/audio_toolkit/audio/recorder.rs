@@ -9,7 +9,7 @@ use std::{
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, Sample, SizedSample,
+    Device, SizedSample,
 };
 
 use crate::audio_toolkit::{
@@ -91,12 +91,12 @@ impl AudioRecorder {
                 let config = AudioRecorder::get_preferred_config(&thread_device)
                     .map_err(|e| format!("Failed to fetch preferred config: {e}"))?;
 
-                let sample_rate = config.sample_rate().0;
+                let sample_rate = config.sample_rate();
                 let channels = config.channels() as usize;
 
                 log::info!(
                     "Using device: {:?}\nSample rate: {}\nChannels: {}\nFormat: {:?}",
-                    thread_device.name(),
+                    thread_device.description().map(|d| d.name().to_string()),
                     sample_rate,
                     channels,
                     config.sample_format()
@@ -227,9 +227,9 @@ impl AudioRecorder {
         sample_tx: mpsc::Sender<AudioChunk>,
         channels: usize,
         stop_flag: Arc<AtomicBool>,
-    ) -> Result<cpal::Stream, cpal::BuildStreamError>
+    ) -> Result<cpal::Stream, cpal::Error>
     where
-        T: Sample + SizedSample + Send + 'static,
+        T: SizedSample + Send + 'static,
         f32: cpal::FromSample<T>,
     {
         let mut output_buffer = Vec::new();
@@ -272,7 +272,7 @@ impl AudioRecorder {
         };
 
         device.build_input_stream(
-            &config.clone().into(),
+            config.clone().into(),
             stream_cb,
             |err| log::error!("Stream error: {}", err),
             None,

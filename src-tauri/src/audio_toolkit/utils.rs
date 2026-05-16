@@ -1,12 +1,10 @@
 /// Returns the appropriate CPAL host for the current platform.
-/// On Linux, uses ALSA host. On other platforms, uses the default host.
+///
+/// The default host on Linux now prefers PipeWire when the `pipewire`
+/// cpal feature is enabled (falling back to PulseAudio, then ALSA),
+/// which matches our build configuration in `Cargo.toml`.
 pub fn get_cpal_host() -> cpal::Host {
-    #[cfg(target_os = "linux")]
-    {
-        cpal::host_from_id(cpal::HostId::Alsa).unwrap_or_else(|_| cpal::default_host())
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        cpal::default_host()
-    }
+    let host = cpal::default_host();
+    log::debug!("Selected CPAL host: {}", host.id());
+    host
 }
