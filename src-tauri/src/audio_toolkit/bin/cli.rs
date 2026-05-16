@@ -1,5 +1,6 @@
 use hound::WavWriter;
 use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
 
 use handy_app_lib::audio_toolkit::{
     audio::{list_input_devices, CpalDeviceInfo},
@@ -29,10 +30,11 @@ struct RecorderState {
     is_open: bool,
     current_device_index: Option<usize>,
     recording_index: u32,
+    raw_buf: Option<Arc<Mutex<Vec<f32>>>>,
 }
 
 impl RecorderState {
-    fn new(recorder: AudioRecorder) -> Self {
+    fn new(recorder: AudioRecorder, raw_buf: Option<Arc<Mutex<Vec<f32>>>>) -> Self {
         Self {
             recorder,
             mode: RecorderMode::AlwaysOn,
@@ -40,6 +42,7 @@ impl RecorderState {
             is_open: false,
             current_device_index: None,
             recording_index: 1,
+            raw_buf,
         }
     }
 
@@ -126,6 +129,10 @@ impl RecorderState {
         }
 
         self.is_recording = true;
+        // Clear any previous unfiltered audio so this recording starts fresh.
+        if let Some(buf) = &self.raw_buf {
+            buf.lock().unwrap().clear();
+        }
         println!(
             "Recording started with device: {}",
             device_index.map_or("default".to_string(), |i| i.to_string())
@@ -171,14 +178,47 @@ impl RecorderState {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_millis()
+        .init();
+
     println!("Advanced Audio Recorder CLI");
     println!("=========================");
+
+    // Simple flag parsing.
+    //   --no-vad   : disable the voice activity detector entirely
+    //   --save-raw : also write an unfiltered (pre-VAD) WAV alongside the
+    //                normal `recording_N.wav` as `recording_N.raw.wav`
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let use_vad = !args.iter().any(|a| a == "--no-vad");
+    let save_raw = args.iter().any(|a| a == "--save-raw");
+    println!(
+        "VAD: {}    raw save: {}",
+        if use_vad { "enabled" } else { "DISABLED" },
+        if save_raw { "ON" } else { "off" }
+    );
+
     print_help();
 
-    let silero = SileroVad::new("./resources/models/silero_vad_v4.onnx", 0.5)?;
-    let smoothed_vad = SmoothedVad::new(Box::new(silero), 15, 15);
-    let recorder = AudioRecorder::new()?.with_vad(Box::new(smoothed_vad));
-    let mut state = RecorderState::new(recorder);
+    let raw_buf: Option<Arc<Mutex<Vec<f32>>>> = if save_raw {
+        Some(Arc::new(Mutex::new(Vec::new())))
+    } else {
+        None
+    };
+
+    let mut recorder = AudioRecorder::new()?;
+    if use_vad {
+        let silero = SileroVad::new("./resources/models/silero_vad_v4.onnx", 0.5)?;
+        let smoothed_vad = SmoothedVad::new(Box::new(silero), 15, 15, 2);
+        recorder = recorder.with_vad(Box::new(smoothed_vad));
+    }
+    if let Some(buf) = &raw_buf {
+        let buf = buf.clone();
+        recorder = recorder.with_raw_frame_callback(move |frame| {
+            buf.lock().unwrap().extend_from_slice(frame);
+        });
+    }
+    let mut state = RecorderState::new(recorder, raw_buf);
 
     let mut devices = list_input_devices()?;
     print_devices(&devices);
@@ -223,13 +263,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match save_audio(&samples, &filename) {
                             Ok(_) => {
                                 println!("Recording saved as: {}", filename);
-                                state.recording_index += 1;
                             }
                             Err(e) => println!("Error saving recording: {}", e),
                         }
                     } else {
                         println!("No audio data captured.");
                     }
+                    if let Some(buf) = &state.raw_buf {
+                        let raw: Vec<f32> = std::mem::take(&mut *buf.lock().unwrap());
+                        if !raw.is_empty() {
+                            let filename =
+                                format!("recording_{}.raw.wav", state.recording_index);
+                            match save_audio(&raw, &filename) {
+                                Ok(_) => println!("Raw (pre-VAD) saved as: {}", filename),
+                                Err(e) => println!("Error saving raw recording: {}", e),
+                            }
+                        }
+                    }
+                    state.recording_index += 1;
                 }
                 Err(e) => println!("Error stopping recording: {}", e),
             },

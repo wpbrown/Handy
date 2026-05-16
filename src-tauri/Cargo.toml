@@ -19,9 +19,9 @@ incremental = true # Compile your binary in smaller steps.
 name = "handy_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# [[bin]]
-# name = "cli"
-# path = "src/audio_toolkit/bin/cli.rs"
+[[bin]]
+name = "handy-cli"
+path = "src/audio_toolkit/bin/cli.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -54,6 +54,7 @@ rubato = "0.16.2"
 hound = "3.5.1"
 log = "0.4.25"
 env_filter = "0.1.0"
+env_logger = "0.11"
 tokio = "1.43.0"
 vad-rs = { git = "https://github.com/cjpais/vad-rs", default-features = false }
 enigo = "0.6.1"
