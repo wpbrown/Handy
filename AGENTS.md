@@ -40,12 +40,10 @@ bun run format:frontend   # Prettier only
 bun run format:backend    # cargo fmt only
 ```
 
-**Model Setup (Required for Development):**
+**Model Setup:**
 
-```bash
-mkdir -p src-tauri/resources/models
-curl -o src-tauri/resources/models/silero_vad_v4.onnx https://blob.handy.computer/silero_vad_v4.onnx
-```
+No manual model download is required for the Silero VAD — the Silero v6 ONNX
+model is embedded into the binary at compile time via `wavekat-vad`.
 
 For detailed platform-specific build setup, see [BUILD.md](BUILD.md).
 
