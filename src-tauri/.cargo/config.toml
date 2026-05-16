@@ -1,0 +1,5 @@
+# Point wavekat-vad's build script at the in-repo Silero VAD v6 ONNX model.
+# This avoids a network download at build time and keeps builds fully
+# reproducible (including in the Nix sandbox and offline CI runners).
+[env]
+SILERO_MODEL_PATH = { value = "resources/models/silero_vad_v6.onnx", relative = true }
